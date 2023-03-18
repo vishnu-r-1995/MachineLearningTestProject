@@ -46,7 +46,7 @@ def Lstm_fallback(x, y):
             optimizer=adam_optimizer,
         )
     es = tf.keras.callbacks.EarlyStopping(monitor = 'loss', patience = 15, restore_best_weights = True)
-    model.fit(x, y, epochs = 20, verbose = 1, callbacks = [es], validation_split = 0.1, batch_size = 16)
+    model.fit(x, y, epochs = 50, verbose = 1, callbacks = [es], validation_split = 0.1, batch_size = 16)
     return model
 
 def Lstm_model(x, y):
@@ -63,7 +63,7 @@ def Lstm_model(x, y):
     regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
     
     es = tf.keras.callbacks.EarlyStopping(monitor = 'loss', patience = 15, restore_best_weights = True)
-    regressor.fit(x, y, epochs = 20, validation_split = 0.1, batch_size = 64, verbose = 1, callbacks = [es])
+    regressor.fit(x, y, epochs = 50, validation_split = 0.1, batch_size = 64, verbose = 1, callbacks = [es])
     return regressor
 
 def predict_open(model, dates_for_training, Lstm_x, dataframe_for_training, future, Scaler):
@@ -90,7 +90,6 @@ def results(dataframe, lookback, future, Scaler, ticker_name):
     future = 30
     predicted_descaled, forecasting_dates = predict_open(model, dates_for_training, Lstm_x, dataframe_for_training, future, Scaler)
     results = get_output_dataframe(forecasting_dates, predicted_descaled)   
-    print(results.head())
     plt.show()
     fig = px.area(results, x = "Date", y = "Open", title = ticker_name)
     fig.update_yaxes(range = [results.Open.min() - 10, results.Open.max() + 10])
@@ -98,4 +97,5 @@ def results(dataframe, lookback, future, Scaler, ticker_name):
 
 Scaler = StandardScaler()
 dataframe = get_dataframe_for_ticker('ENV', '5y')
+dataframe = dataframe.iloc[0 : len(dataframe) - 15, :]
 results(dataframe, 30, 1, Scaler, 'ENV')
