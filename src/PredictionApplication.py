@@ -11,6 +11,7 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Flatten
+from datetime import datetime, timedelta
 
 def get_dataframe_for_ticker(ticker, time_period):
     dataframe = yf.Ticker(ticker).history(period = time_period).reset_index()
@@ -68,16 +69,31 @@ def Lstm_model(x, y):
     regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
     
     es = tf.keras.callbacks.EarlyStopping(monitor = 'loss', patience = 15, restore_best_weights = True)
-    regressor.fit(x, y, epochs = 75, validation_split = 0.1, batch_size = 64, verbose = 1, callbacks = [es])
+    regressor.fit(x, y, epochs = 40, validation_split = 0.1, batch_size = 64, verbose = 1, callbacks = [es])
     return regressor
 
-def predict_open(model, dates_for_testing, x_test, dataframe_for_testing, Scaler):
+def predict_open(model, dates_for_testing, x_test, dataframe_for_testing, scaler):
     forecasting_dates = dates_for_testing.tolist()
     predicted = model.predict(x_test)
     predicted1 = np.repeat(predicted, dataframe_for_testing.shape[1], axis = -1)
-    predicted_descaled = Scaler.inverse_transform(predicted1)[:, 0]
+    predicted_descaled = scaler.inverse_transform(predicted1)[:, 0]
     return predicted_descaled, forecasting_dates
 
+def predict_future(model, dataframe, scaler):
+    dataframe_lstm = dataframe[['Open','High','Low','Close','Volume','Dividends','Stock Splits']]
+    x = []
+    dataframe_lstm = dataframe_lstm.astype(float)
+    dataframe_scaled = scaler.fit_transform(dataframe_lstm)
+    x.append(dataframe_scaled[:, :])
+    predicted = model.predict(np.array(x))
+    predicted1 = np.repeat(predicted, dataframe_lstm.shape[1], axis = -1)
+    predicted_descaled = scaler.inverse_transform(predicted1)[:, 0]
+    
+    last_date = dataframe['Date'].astype(str).iloc[-1]
+    last_date_datetime = datetime.strptime(last_date.split(' ')[0], '%Y-%m-%d')
+    next_date = last_date_datetime + timedelta(1)
+    print('The Open Price in USD for date', next_date, 'is', predicted_descaled[-1])
+    
 def print_rmse(y_test, predicted_descaled):
     rmse = np.sqrt(np.mean(y_test - predicted_descaled)**2)
     print('rmse = ', rmse)
@@ -102,7 +118,7 @@ def get_output_dataframe(forecasting_dates, predicted_descaled):
     df_final['Open'] = predicted_descaled
     return df_final
 
-def results(dataframe_test, dataframe_train, lookback, future, scaler, ticker):
+def results(dataframe_test, dataframe_train, dataframe_predict, lookback, future, scaler, ticker):
     x_train, y_train, dataframe_for_training, dates_for_training = prep_data(dataframe_train, lookback, future, scaler, 'train')
     x_test, y_test, dataframe_for_testing, dates_for_testing = prep_data(dataframe_test, lookback, future, scaler, 'test')
     
@@ -113,6 +129,7 @@ def results(dataframe_test, dataframe_train, lookback, future, scaler, ticker):
     future = 30
     predicted_descaled, forecasting_dates = predict_open(model, dates_for_testing, x_test, dataframe_for_testing, scaler)
     
+    predict_future(model, dataframe_predict, scaler)
     print_rmse(y_test.flatten(), np.array(predicted_descaled))
     plot_predicted_vs_real(np.array(predicted_descaled), y_test.flatten(), forecasting_dates, ticker)
     results = get_output_dataframe(forecasting_dates, predicted_descaled)   
@@ -124,9 +141,10 @@ def results(dataframe_test, dataframe_train, lookback, future, scaler, ticker):
 
 
 scaler = StandardScaler()
-ticker = 'ENV'
+ticker = 'GC=F'
 time_period = '10y'
 dataframe = get_dataframe_for_ticker(ticker, time_period)
 dataframe_train = dataframe.iloc[0 : len(dataframe) - 300, :]
 dataframe_test = dataframe.iloc[len(dataframe) - 300 : len(dataframe), :]
-results(dataframe_test, dataframe_train, 30, 1, scaler, ticker)
+dataframe_predict = dataframe.iloc[len(dataframe) - 30 : len(dataframe), :]
+results(dataframe_test, dataframe_train, dataframe_predict, 30, 1, scaler, ticker)
