@@ -11,6 +11,8 @@ from sklearn.preprocessing import OrdinalEncoder
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
 
 def get_csv_dataframe(file_path):
     return pd.read_csv(file_path)
@@ -169,6 +171,29 @@ decision_tree_model = get_model_after_fitting_train_data_using_decision_tree_reg
 decision_tree_predictions_dataframe = get_predicted_values_as_dataframe_using_decision_tree_regression(
     decision_tree_model, housing_test_set_scaled, target_scaler, housing_test_set_labels)
 
+def get_model_after_fitting_train_data_using_random_forest_regression(
+        train_set_scaled, train_set_labels_scaled):
+    random_forest_model = RandomForestRegressor(random_state = 42)
+    parameters = {'n_estimators':[1,10,30,50]}
+    gd = GridSearchCV(random_forest_model, parameters)
+    random_forest_model = gd.fit(train_set_scaled, train_set_labels_scaled)
+    print(gd.best_params_)
+    return random_forest_model
+
+def get_predicted_values_as_dataframe_using_random_forest_regression(
+        model, test_set_scaled, target_scaler, test_set_labels):
+    scaled_predictions = model.predict(test_set_scaled)
+    predictions = target_scaler.inverse_transform(scaled_predictions.reshape(-1, 1))
+    return pd.DataFrame(predictions, 
+                            columns = ["predicted"], 
+                            index = test_set_labels.index)
+
+random_forest_model = get_model_after_fitting_train_data_using_random_forest_regression(
+    housing_train_set_scaled, housing_train_set_labels_scaled)
+
+random_forest_predictions_dataframe = get_predicted_values_as_dataframe_using_random_forest_regression(
+    random_forest_model, housing_test_set_scaled, target_scaler, housing_test_set_labels)
+    
 def display_plot_comparing_dataframes(dataframe_real, dataframe_predicted):
     dataframe_combined = pd.concat([dataframe_predicted, dataframe_predicted], axis=1, join='inner')
     plt.plot(dataframe_combined)
@@ -176,11 +201,11 @@ def display_plot_comparing_dataframes(dataframe_real, dataframe_predicted):
     plt.show()
 
 def display_rmse(dataframe_real, dataframe_predicted):
-    print('rmse =', np.sqrt(np.mean(dataframe_real.median_house_value - dataframe_predicted.predicted)**2))
-    print('rmse =', mean_squared_error(dataframe_real.median_house_value, dataframe_predicted.predicted, squared = False))
+    print('rmse =', np.sqrt((np.mean(dataframe_real.median_house_value) - np.mean(dataframe_predicted.predicted))**2))
+    print('rmse =', mean_squared_error(dataframe_real.median_house_value, dataframe_predicted.predicted, squared = True))
     
 #display_plot_comparing_dataframes(housing_test_set_labels, predictions_dataframe)
-#display_rmse(housing_test_set_labels, regression_predictions_dataframe)
+display_rmse(housing_test_set_labels, random_forest_predictions_dataframe)
 #display_rmse(housing_test_set_labels, decision_tree_predictions_dataframe)
-#print_dataframe_tail(pd.concat([housing_test_set_labels, regression_predictions_dataframe], axis=1, join='inner'))
+print_dataframe_tail(pd.concat([housing_test_set_labels, random_forest_predictions_dataframe], axis=1, join='inner'))
 #print_dataframe_tail(pd.concat([housing_test_set_labels, decision_tree_predictions_dataframe], axis=1, join='inner'))
